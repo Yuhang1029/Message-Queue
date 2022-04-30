@@ -44,6 +44,8 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 在消息发送的过程中，涉及到了两个线程—— `main` 线程和 `Sender` 线程。在 `main` 线程
 中创建了一个双端队列 `RecordAccumulator`。`main` 线程将消息发送给 `RecordAccumulator`， `Sender` 线程不断从 `RecordAccumulator` 中拉取消息发送到 `Kafka Broker`。![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2012.59.10.png)![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.17.10.png)
 
+![Aaron Swartz](https://github.com/Yuhang1029/Pic/raw/master/1.png)
+
 * 同步发送：一定是逐条发送，第一条响应到达后才会请求第二条。
 
 * 异步发送：可以发送一条，也可以批量发送多条，特性是不需要等第一次响应就可以发送第二次。
