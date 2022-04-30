@@ -42,9 +42,9 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 ### 发送原理
 
 在消息发送的过程中，涉及到了两个线程—— `main` 线程和 `Sender` 线程。在 `main` 线程
-中创建了一个双端队列 `RecordAccumulator`。`main` 线程将消息发送给 `RecordAccumulator`， `Sender` 线程不断从 `RecordAccumulator` 中拉取消息发送到 `Kafka Broker`。![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2012.59.10.png)![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.17.10.png)
+中创建了一个双端队列 `RecordAccumulator`。`main` 线程将消息发送给 `RecordAccumulator`， `Sender` 线程不断从 `RecordAccumulator` 中拉取消息发送到 `Kafka Broker`。![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.17.10.png)
 
-![Aaron Swartz](https://github.com/Yuhang1029/Pic/raw/master/1.png)
+![Aaron Swartz](https://github.com/Yuhang1029/Pic/raw/master/3.png)
 
 * 同步发送：一定是逐条发送，第一条响应到达后才会请求第二条。
 
@@ -128,6 +128,8 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 
 ![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.18.58.png)
 
+![](https://github.com/Yuhang1029/Pic/raw/master/2.png)
+
 通过事务就可以确保即使客户端出现故障重启后也可以继续正常工作。
 
 &emsp;
@@ -137,5 +139,7 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 在单一分区内，数据是有序的；对于多分区，分区与分区间的数据是无序的。
 
 ![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.25.02.png)
+
+![](https://github.com/Yuhang1029/Pic/raw/master/1.png)
 
 在 Kafka1.x 以后，启用幂等后，Kafka 服务端会缓存生产者发来的最近5个 request 的元数据，故无论如何，都可以保证最近5个 request 的数据都是有序的。
