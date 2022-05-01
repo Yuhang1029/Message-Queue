@@ -154,6 +154,46 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 
 &emsp;
 
-## Broker
+## Broker 工作流程
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/3a92435a435c4ebcb1f2ee0197e991ad.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 
+
+### Kafka 的副本
+
+副本的作用是提高数据可靠性。Kafka 默认副本 1 个，生产环境一般配置为 2 个，保证数据可靠性；太多副本会增加磁盘存储空间，增加网络上数据传输，降低效率。在 Kafka 中，副本分为 `Leader` 和 `Follower`。Kafka 生产者只会把数据发往 `Leader`，然后 `Follower` 找 `Leader` 进行同步数据。Kafka 分区中的所有副本统称为 `AR (Assigned Repllicas)`。AR = ISR + OSR，其中：
+
+* ISR 表示和 `Leader` 保持同步的 `Follower` 集合。如果 `Follower` 长时间未向 `Leader` 发送通信请求或同步数据，则该 `Follower` 将被踢出 ISR。该时间阈值由 `replica.lag.time.max.ms` 参数设定，默认 30s。`Leader` 发生故障之后，就会从 ISR 中选举新的 `Leader`。
+
+* OSR 表示 `Follower` 与 `Leader` 副本同步时，延迟过多的副本。
+
+&emsp;
+
+#### Leader 选举
+
+Kafka 集群中有一个 `broker` 的 `Controller` 会被选举为 `Controller Leader`，负责管理集群 `broker` 的上下线，所有 `topic` 的分区副本分配和 `Leader` 选举等工作。当出现故障后，选举原则以在 ISR 中存活为前提，按照 AR 中排在前面的优先。`Controller` 的信息同步工作是依赖于 `Zookeeper` 的。
+
+&emsp;
+
+#### 故障处理
+
+`Follower` 出现故障后如下图处理。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/fded89821c0b4281a6de6d6560576681.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+&emsp;
+
+`Leader` 出现故障后如下图处理。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/03b09bc0f2d2456c805c733c889942c0.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+&emsp;
+
+### 文件存储
+
+`Topic` 是逻辑上的概念，而 `partition` 是物理上的概念，每个partition对应于一个 Log 文件，该 Log 文件中存储的就是生产者生产的数据。生产者生产的数据会被不断追加到该 Log 文件末端，为防止 Log 文件过大导致数据定位效率低下，Kafka采取了分片和索引机制，将每个 `partition` 分为多个 `segment` 。每个 `segment` 包括一个 `.index` 偏移量索引文件，一个 `.log` 日志文件和 `.timeindex` 时间戳索引等文件。这些文件位于一个文件夹下，该文件夹的命名规则为 topic名称+分区序号。
+
+![[外链图片转存失败,源站可能有防盗链机制,建议将图片保存下来直接上传(img-2ZmlCBF2-1636885037638)(C:/Users/PePe/AppData/Roaming/Typora/typora-user-images/image-20211114142618525.png)]](https://img-blog.csdnimg.cn/ef1b6568d17043c5a0e28a026500c422.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+**在 Kafka 中，默认的日志保存时间为 7 天**。
