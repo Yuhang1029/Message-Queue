@@ -42,15 +42,19 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 ### 发送原理
 
 在消息发送的过程中，涉及到了两个线程—— `main` 线程和 `Sender` 线程。在 `main` 线程
-中创建了一个双端队列 `RecordAccumulator`。`main` 线程将消息发送给 `RecordAccumulator`， `Sender` 线程不断从 `RecordAccumulator` 中拉取消息发送到 `Kafka Broker`。![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.17.10.png)
+中创建了一个双端队列 `RecordAccumulator`。`main` 线程将消息发送给 `RecordAccumulator`， `Sender` 线程不断从 `RecordAccumulator` 中拉取消息发送到 `Kafka Broker`。
 
-![Aaron Swartz](https://github.com/Yuhang1029/Pic/raw/master/3.png)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/06a6dd353ee14d98bc5788bd8cc87898.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 * 同步发送：一定是逐条发送，第一条响应到达后才会请求第二条。
 
 * 异步发送：可以发送一条，也可以批量发送多条，特性是不需要等第一次响应就可以发送第二次。
 
+&emsp;
+
 ### 分区
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/9e1b1c96fb664a588544bbb0c26555e0.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 分区包括以下几个优点：
 
@@ -96,7 +100,13 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 
 &emsp;
 
-针对上面的三种情况，第三种显然是最保险的，但是会有一个问题：`Leader` 收到数据，所有 `Follower` 都开始同步数据，但有一个 `Follower` ，因为某种故障，迟迟不能与 `Leader`进行同步，就会导致迟迟不能发送 ACK，那这个问题怎么解决呢? 实际上，`Leader`维护了一个动态的 `in-sync replica set` (ISR)，意为和 `Leader` 保持同步的 Follower + Leader 集合。如果一个 `Follower` 长时间未向 `Leader` 发送通信请求或同步数据，则该 `Follower` 将被踢出 ISR。该时间阈值由 `replica.lag.time.max.ms` 参数设定，默认30秒。**根据这种机制，为了确保可靠性，也需要满足该分区的副本个数大于等于2**。
+![[外链图片转存失败,源站可能有防盗链机制,建议将图片保存下来直接上传(img-lQVkkjrQ-1636885037649)(C:/Users/PePe/AppData/Roaming/Typora/typora-user-images/image-20211114142912652.png)]](https://img-blog.csdnimg.cn/3fc9e15ba56b47368507e31cc53ca7ad.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+上图是针对 ACK 是 -1 的情况。
+
+&emsp;
+
+第三种显然是最保险的，但是会有一个问题：`Leader` 收到数据，所有 `Follower` 都开始同步数据，但有一个 `Follower` ，因为某种故障，迟迟不能与 `Leader`进行同步，就会导致迟迟不能发送 ACK，那这个问题怎么解决呢? 实际上，`Leader`维护了一个动态的 `in-sync replica set` (ISR)，意为和 `Leader` 保持同步的 Follower + Leader 集合。如果一个 `Follower` 长时间未向 `Leader` 发送通信请求或同步数据，则该 `Follower` 将被踢出 ISR。该时间阈值由 `replica.lag.time.max.ms` 参数设定，默认30秒。**根据这种机制，为了确保可靠性，也需要满足该分区的副本个数大于等于2**。
 
 &emsp;
 
@@ -122,13 +132,13 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 
 幂等性就是指生产者不论向 `Broker` 发送多少次重复数据，`Broker` 端都只会持久化一条，保证了不重复。重复数据的判断标准：具有 `<PID, Partition, SeqNumber>` 相同主键的消息提交时，`Broker` 只会持久化一条。其中 `PID` 是 Kafka 每次重启都会分配一个新的，`Partition` 表示分区号，`Sequence Number` 是单调自增的，所以**幂等性只能保证的是在单分区单会话内不重复**。在生产环境里，开启幂等性的参数 `enable.idempotence` 默认为 true，false 关闭。
 
+![在这里插入图片描述](https://img-blog.csdnimg.cn/7852dd363c534be6a288136b17e0d6c3.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
 &emsp;
 
 为了确保多次会话内数据仍然不重复，需要使用事务。在 Kafka 中，开启事务必须开启幂等性。
 
-![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.18.58.png)
-
-![](https://github.com/Yuhang1029/Pic/raw/master/2.png)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/d807aef6755d47179849a4ef0b3e2943.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 通过事务就可以确保即使客户端出现故障重启后也可以继续正常工作。
 
@@ -138,8 +148,12 @@ Kafka 的目标是实现一个为处理实时数据提供一个统一、高吞�
 
 在单一分区内，数据是有序的；对于多分区，分区与分区间的数据是无序的。
 
-![](/Users/yuhangliu/Desktop/Screen%20Shot%202022-04-30%20at%2017.25.02.png)
-
-![](https://github.com/Yuhang1029/Pic/raw/master/1.png)
+![在这里插入图片描述](https://img-blog.csdnimg.cn/d1f32c9d78294bdab8d5c49d755500be.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 在 Kafka1.x 以后，启用幂等后，Kafka 服务端会缓存生产者发来的最近5个 request 的元数据，故无论如何，都可以保证最近5个 request 的数据都是有序的。
+
+&emsp;
+
+## Broker
+
+
