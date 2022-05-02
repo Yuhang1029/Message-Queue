@@ -4,6 +4,8 @@
 
 [Kafka概述快速入门 - CSDN博客](https://achang.blog.csdn.net/article/details/121307740)
 
+[Kafka 基础 - CSDN博客](https://achang.blog.csdn.net/article/details/123054073)
+
 &emsp;
 
 ## 定义
@@ -197,3 +199,94 @@ Kafka 集群中有一个 `broker` 的 `Controller` 会被选举为 `Controller L
 ![[外链图片转存失败,源站可能有防盗链机制,建议将图片保存下来直接上传(img-2ZmlCBF2-1636885037638)(C:/Users/PePe/AppData/Roaming/Typora/typora-user-images/image-20211114142618525.png)]](https://img-blog.csdnimg.cn/ef1b6568d17043c5a0e28a026500c422.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
 
 **在 Kafka 中，默认的日志保存时间为 7 天**。
+
+&emsp;
+
+### 高效读写数据
+
+1. Kafka 本身是分布式集群，可以采用分区技术，并行度高。
+
+2. 读数据采用稀疏索引，可以快速定位要消费的数据。
+
+3. 顺序写磁盘。Kafka 的生产者生产数据，要写入到 Log 文件中，写的过程是一直追加到文件末端，为顺序写。
+
+4. 零拷贝。Kafka 的数据加工处理操作交由 Kafka 生产者和 Kafka 消费者处理。Kafka `Broker` 应用层不关心存储的数据，所以就不用走应用层，传输效率高。
+
+5. `PageCache` 页缓存。Kafka 重度依赖底层操作系统提供的 `PageCache` 功能。当上层有写操作时，操作系统只是将数据写入 `PageCache`。当读操作发生时，先从 `PageCache`中查找，如果找不到，再去磁盘中读取。实际上 `PageCache` 是把尽可能多的空闲内存
+   都当做了磁盘缓存来使用。
+
+&emsp;
+
+## 消费者
+
+### Kafka 消费方式
+
+消息队列常见的两种消费方式有：
+
+* pull (拉) 模式 -- 消费者主动：消费者采用从 `broker` 中主动拉取数据。**Kafka 采用这种方式**。拉模式不足之处是，如果 Kafka 没有数据，消费者可能会陷入循环中，一直返回空数据。针对这一点，Kafka 的消费者在消费数据时会传入一个时长参数 `timeout`，如果当前没有数据可供消费，消费者会等待一段时间后再返回，这段时长即为 `timeout`。
+
+* push (推) 模式 -- `broker` 主动：由 `broker` 决定消息发送速率，Kafka 没有采用这种方式，因为很难适应所有消费者的消费速率。
+
+&emsp;
+
+### 消费者工作流程
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/b3d26e76be0d42bfaa8fc690b8e57443.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+&emsp;
+
+### 消费者组
+
+`Consumer Group (CG)`：消费者组，由多个消费者组成。形成一个消费者组的条件，是所有消费者的 `groupId` 相同。
+
+* 消费者组内每个消费者负责消费不同分区的数据，**每一个分区只能由一个组内消费者消费**。  
+
+* **消费者组之间互不影响**。所有的消费者都属于某个消费者组，即**消费者组是逻辑上的一个订阅者**。
+
+* 如果消费者组内有过多的消费者，超过分区数量，则一部分消费者就会空闲，不接收任何消息。
+
+![](https://img-blog.csdnimg.cn/8cae27e6367046d6ae311a58cd4d516c.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+&emsp;
+
+### 分区消费策略
+
+一个消费者组中有多个消费者组成，一个 `topic` 有多个 `partition` 组成，现在的问题是，到底由哪个消费者来消费哪个 `partition` 的数据？Kafka 有四种主流的分区分配策略: Range、RoundRobin、Sticky、CooperativeSticky。可以通过配置参数`partition.assignment.strategy`，修改分区的分配策略。默认策略是 Range+ CooperativeSticky。Kafka 可以同时使用多个分区分配策略。
+
+#### Range 策略
+
+![](https://img-blog.csdnimg.cn/88366a4e2c514ef8ab13817675866086.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+#### RoundRobin 策略
+
+![](https://img-blog.csdnimg.cn/fb57a06f0dc749189019d089ce072740.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+#### Sticky 策略
+
+粘性分区可以理解为分配的结果带有“粘性的”。即在执行一次新的分配之前，考虑上一次分配的结果，尽量少的调整分配的变动，可以节省大量的开销。粘性分区是 Kafka 从 0.11.x 版本开始引入这种分配策略，首先会尽量均衡的放置分区到消费者上面，在出现同一消费者组内消费者出现问题的时候，会尽量保持原有分配的分区不变化。
+
+&emsp;
+
+### OffSet
+
+由于消费者在消费过程中可能会出现断电宕机等故障，待其恢复后，需要从故障前的位置的继续消费，所以消费者需要实时记录自己消费到了哪个 offset，以便故障恢复后继续消费。Kafka 0.9 版本之前，消费者默认将 offset 保存在 Zookeeper 中，从 0.9 版本开始，消费者默认将 offset 保存在 Kafka 一个内置的 topic 中，该 topic 为`__consumer_offsets`。
+
+&emsp;
+
+### 消费者事务
+
+首先先来看一下什么是重复消费和漏消费。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/16786c63aa7847dead898fbbcfacaeb0.png?x-oss-process=image/watermark,type_d3F5LXplbmhlaQ,shadow_50,text_Q1NETiBA6Zi_5piM5Zac5qyi5ZCD6buE5qGD,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+如果想完成消费者端的精准一次性消费，那么需要 Kafka 消费端将消费过程和提交 offset 过程做原子绑定。
+
+&emsp;
+
+### 如何提升吞吐量
+
+1. 如果是 Kafka 消费能力不足，则可以考虑增加 `topic` 的分区数，并且同时提升消费组的消费者数量，消费者数 = 分区数 (两者缺一不可) 。
+
+2. 如果是下游的数据处理不及时，可以提高每批次拉取的数量。批次拉取数据过少 (拉取数据/处理时间 < 生产速度)，使处理的数据小于生产的数据，也会造成数据积压。
+
+
