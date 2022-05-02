@@ -2,9 +2,11 @@
 
 **参考文档**
 
-[Kafka概述快速入门 - CSDN博客](https://achang.blog.csdn.net/article/details/121307740)
+[Kafka 概述快速入门 - CSDN博客](https://achang.blog.csdn.net/article/details/121307740)
 
 [Kafka 基础 - CSDN博客](https://achang.blog.csdn.net/article/details/123054073)
+
+[Kafka 3.x 教程](https://www.bilibili.com/video/BV1vr4y1677k?p=1)
 
 &emsp;
 
